@@ -4,6 +4,11 @@ const cosmosdb = require("./cosmosdb");
 
 exports.init = (dir) => {
     const copied = [];
+    if (!fs.existsSync(dir + "backup/")){
+        fs.mkdirSync(dir + "backup/");
+        console.log("Creating: " + dir + "backup/")
+    }
+
     fs.watch(dir, (eventType, filename) => {
         console.log(eventType);
         console.log(filename);
@@ -18,7 +23,8 @@ exports.init = (dir) => {
             console.log(err)
         }
     })
-    console.log("Listening for files");
+    
+    console.log("Listening for files..");
 }
     
 const read = async (file, dir, filename) => {
@@ -93,85 +99,74 @@ const read = async (file, dir, filename) => {
         console.log(match.info);
         var results = {};
         results.match = match;
-        // fs.writeFileSync("log.json", JSON.stringify(match));
         cosmosdb.init()
             .then(async () => {
-                await console.log(cosmosdb.addItem(results));
-                
+                await cosmosdb.addItem(results)
+                    .then((doc) => {
+                        console.log(filename + " has been uploaded");
+                    });
             })
             .catch(err => {
                 console.log(err)
-            })
+            });
 
         move(dir + filename, dir + "backup/" + filename, (err) => {
             console.log(err);
         })
     });
 
-
-    
-
-
-
-
-
-
-
-
-const playerStats = (logRow) => {
-    let stat = logRow[2];
-    let id = logRow[3];
-    let value = logRow[4];
-    let playerIndex = -1;
-    match.players.forEach((row, index) => {
-        if(id === row.id)
+    const playerStats = (logRow) => {
+        let stat = logRow[2];
+        let id = logRow[3];
+        let value = logRow[4];
+        let playerIndex = -1;
+        match.players.forEach((row, index) => {
+            if(id === row.id)
+            {
+                playerIndex = index;
+            }
+        });
+        if(playerIndex === -1)
         {
-            playerIndex = index;
+            // something went wrong finding the player
+            // invalid log file?
         }
-    });
-    if(playerIndex === -1)
-    {
-        // something went wrong finding the player
-        // invalid log file?
-    }
-    else
-    {
-        match.players[playerIndex][stat] = value;
-    }
-}
-
-const playerInfo = (logRow) => {
-    let player = {};
-    switch(logRow[2])
-    {
-        case 'Rename':
-        case 'Connect':
-            player.id = logRow[4];
-            player.name = logRow[3];
-            break;
-        case 'IsABot':
-            player.id = logRow[3];
-            player.isabot = logRow[4];
-            break;
-    }
-    let playerIndex = -1;
-    match.players.forEach((row, index) => {
-        if(player.id === row.id)
+        else
         {
-            playerIndex = index;
+            match.players[playerIndex][stat] = value;
         }
-    });
-    if(playerIndex === -1)
-    {
-        match.players.push(player);
     }
-    else
-    {
-        match.players[playerIndex] = {...match.players[playerIndex], ...player};
+
+    const playerInfo = (logRow) => {
+        let player = {};
+        switch(logRow[2])
+        {
+            case 'Rename':
+            case 'Connect':
+                player.id = logRow[4];
+                player.name = logRow[3];
+                break;
+            case 'IsABot':
+                player.id = logRow[3];
+                player.isabot = logRow[4];
+                break;
+        }
+        let playerIndex = -1;
+        match.players.forEach((row, index) => {
+            if(player.id === row.id)
+            {
+                playerIndex = index;
+            }
+        });
+        if(playerIndex === -1)
+        {
+            match.players.push(player);
+        }
+        else
+        {
+            match.players[playerIndex] = {...match.players[playerIndex], ...player};
+        }
     }
-}
-
-
 }
 
 const move = (oldPath, newPath, callback) => {
@@ -202,4 +197,6 @@ const move = (oldPath, newPath, callback) => {
         readStream.pipe(writeStream);
     }
 }
-exports.init('./logs/');
+
+
+exports.init('./logs/')
